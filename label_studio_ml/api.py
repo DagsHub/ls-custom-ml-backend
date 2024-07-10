@@ -36,14 +36,14 @@ def init_app(model_instance, basic_auth_user=None, basic_auth_pass=None):
 @exception_handler
 def _configure():
     args = json.loads(request.get_json())
-    dagshub.init(args['repo'], args['username'])  # user-level privileged auth token
-    ls_model = mlflow.pyfunc.load_model(f'models:/{args["model"]}/{args["version"]}')
+    dagshub.init(*args['repo'].split('/')[::-1])  # user-level privileged auth token
+    mlflow_model = mlflow.pyfunc.load_model(f'models:/{args["model"]}/{args["version"]}')
 
-    model.configure(ls_model, *[cloudpickle.loads(base64.b64decode(args[hook])) for hook in ['pre_hook', 'post_hook']])
+    ds = datasources.get_datasource(args['datasource_repo'], args['datasource_name'])
+    dp_map = ds.all().dataframe[['path', 'datapoint_id']]
+    model.configure(mlflow_model, *[cloudpickle.loads(base64.b64decode(args[hook])) for hook in ['pre_hook', 'post_hook']], ds, dp_map)
     # model.api = dagshub.common.api.repo.RepoAPI(f'https://dagshub.com/{args["username"]}/{args["repo"]}', host=args['host'])
 
-    model.ds = datasources.get_datasource(args['datasource_repo'], args['datasource_name'])
-    model.dp_map = model.ds.all().dataframe[['path', 'datapoint_id']]
     return []
 
 @_server.route('/predict', methods=['POST'])
