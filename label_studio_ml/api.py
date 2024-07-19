@@ -36,6 +36,7 @@ def init_app(model_instance, basic_auth_user=None, basic_auth_pass=None):
 @exception_handler
 def _configure():
     args = json.loads(request.get_json())
+    dagshub.auth.add_app_token(args['authtoken'])
     dagshub.init(*args['repo'].split('/')[::-1])  # user-level privileged auth token
     mlflow_model = mlflow.pyfunc.load_model(f'models:/{args["model"]}/{args["version"]}')
 
