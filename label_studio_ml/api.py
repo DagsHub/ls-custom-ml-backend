@@ -8,6 +8,7 @@ import base64
 import cloudpickle
 from dagshub.data_engine import datasources
 
+from shell_utils import shell
 from flask import Flask, request, jsonify, Response
 
 from .response import ModelResponse
@@ -36,8 +37,13 @@ def init_app(model_instance, basic_auth_user=None, basic_auth_pass=None):
 @exception_handler
 def _configure():
     args = json.loads(request.get_json())
+
     dagshub.auth.add_app_token(args['authtoken'])
     dagshub.init(*args['repo'].split('/')[::-1])  # user-level privileged auth token
+
+    req_path = mlflow.pyfunc.load_model(f'models:/{args["model"]}/{args["version"]}')
+    shell(f'yes | uv pip install -r {req_path}')
+
     mlflow_model = mlflow.pyfunc.load_model(f'models:/{args["model"]}/{args["version"]}')
 
     ds = datasources.get_datasource(args['datasource_repo'], args['datasource_name'])
