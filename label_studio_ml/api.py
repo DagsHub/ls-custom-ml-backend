@@ -41,7 +41,7 @@ def _configure():
     dagshub.auth.add_app_token(args['authtoken'])
     dagshub.init(*args['repo'].split('/')[::-1])  # user-level privileged auth token
 
-    req_path = mlflow.pyfunc.load_model(f'models:/{args["model"]}/{args["version"]}')
+    req_path = mlflow.pyfunc.get_model_dependencies(f'models:/{args["model"]}/{args["version"]}')
     shell(f'yes | uv pip install -r {req_path}')
 
     mlflow_model = mlflow.pyfunc.load_model(f'models:/{args["model"]}/{args["version"]}')
