@@ -42,7 +42,10 @@ def _configure():
     dagshub.init(*args['repo'].split('/')[::-1])  # user-level privileged auth token
 
     req_path = mlflow.pyfunc.get_model_dependencies(f'models:/{args["model"]}/{args["version"]}')
-    shell(f'yes | uv pip install -r {req_path}')
+    try:
+        shell(f'yes | uv pip install -r {req_path}')
+    except:
+        raise ValueError("Failed to install requirements.txt.")
 
     mlflow_model = mlflow.pyfunc.load_model(f'models:/{args["model"]}/{args["version"]}')
 
