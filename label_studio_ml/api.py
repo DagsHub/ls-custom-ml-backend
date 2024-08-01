@@ -1,3 +1,5 @@
+from dagshub.data_engine import datasources
+
 import hmac
 import json
 import logging
@@ -5,10 +7,12 @@ import os
 import dagshub
 import mlflow
 import base64
+import tempfile
 import cloudpickle
-from dagshub.data_engine import datasources
+import importlib
+import sys
 
-from shell_utils import shell
+import subprocess
 from flask import Flask, request, jsonify, Response
 
 from .response import ModelResponse
@@ -20,6 +24,7 @@ logger = logging.getLogger(__name__)
 _server = Flask(__name__)
 BASIC_AUTH = None
 
+tempdir = tempfile.mkdtemp()
 
 def init_app(model_instance, basic_auth_user=None, basic_auth_pass=None):
     global model
@@ -36,6 +41,13 @@ def init_app(model_instance, basic_auth_user=None, basic_auth_pass=None):
 @_server.post('/configure')
 @exception_handler
 def _configure():
+    def reverse_lookup(dictionary, target):
+        for key in dictionary:
+            if target.lower() in [x.lower() for x in dictionary[key]]:
+                return key
+
+    global tempdir
+
     args = json.loads(request.get_json())
 
     dagshub.auth.add_app_token(args['authtoken'])
@@ -43,11 +55,21 @@ def _configure():
 
     req_path = mlflow.pyfunc.get_model_dependencies(f'models:/{args["model"]}/{args["version"]}')
     try:
-        shell(f'yes | uv pip install -r {req_path}')
+        uv_output = subprocess.run(f'yes | uv pip install --upgrade -r {req_path}', shell=True, capture_output=True)
     except:
         raise ValueError("Failed to install requirements.txt.")
+    importlib.invalidate_caches()
 
-    mlflow_model = mlflow.pyfunc.load_model(f'models:/{args["model"]}/{args["version"]}')
+    lookup_table = importlib.metadata.packages_distributions()
+    for module in [x[3:x.index(b'=')].decode('utf-8') for x in uv_output.stderr.split(b'\n') if b'+' in x]:
+        try:
+            lib = importlib.import_module(reverse_lookup(lookup_table, module))
+            importlib.reload(lib)
+        except:
+            print(f"Could not re-load {module}")
+    importlib.invalidate_caches()
+
+    mlflow_model = mlflow.pyfunc.load_model(f'models:/{args["model"]}/{args["version"]}', dst_path=tempdir)
 
     ds = datasources.get_datasource(args['datasource_repo'], args['datasource_name'])
     dp_map = ds.all().dataframe[['path', 'datapoint_id']]
