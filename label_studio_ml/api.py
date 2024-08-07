@@ -1,4 +1,5 @@
 from dagshub.data_engine import datasources
+from dotenv import load_dotenv
 
 import hmac
 import json
@@ -48,6 +49,7 @@ def _configure():
 
     global tempdir
 
+    load_dotenv()
     args = json.loads(request.get_json())
 
     dagshub.auth.add_app_token(args['authtoken'])
