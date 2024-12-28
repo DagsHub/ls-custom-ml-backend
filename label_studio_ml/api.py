@@ -72,8 +72,9 @@ def _configure():
             print(f"Could not re-load {module}")
     importlib.invalidate_caches()
 
-    loader = importlib.import_module(mlflow.models.get_model_info(model_uri).flavors['python_function']['loader_module'])
-    mlflow_model = loader(model_uri, dst_path=tempdir)
+    model_flavor = mlflow.models.get_model_info(model_uri).flavors['python_function']['loader_module']
+    loader = importlib.import_module(model_flavor[:len(model_flavor) - model_flavor[::-1].index('.') - 1])
+    mlflow_model = loader.load_model(model_uri, dst_path=tempdir)
 
     ds = datasources.get_datasource(args['datasource_repo'], args['datasource_name'])
     dp_map = ds.all().dataframe[['path', 'datapoint_id']]
