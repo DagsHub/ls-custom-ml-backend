@@ -55,7 +55,8 @@ def _configure():
     dagshub.auth.add_app_token(args['authtoken'])
     dagshub.init(*args['repo'].split('/')[::-1])  # user-level privileged auth token
 
-    req_path = mlflow.pyfunc.get_model_dependencies(f'models:/{args["model"]}/{args["version"]}')
+    model_uri = f'models:/{args["model"]}/{args["version"]}'
+    req_path = mlflow.artifacts.download_artifacts(f'{model_uri}/requirements.txt')
     try:
         uv_output = subprocess.run(f'yes | uv pip install --upgrade -r {req_path}', shell=True, capture_output=True)
     except:
@@ -71,7 +72,9 @@ def _configure():
             print(f"Could not re-load {module}")
     importlib.invalidate_caches()
 
-    mlflow_model = mlflow.pyfunc.load_model(f'models:/{args["model"]}/{args["version"]}', dst_path=tempdir)
+    model_flavor = mlflow.models.get_model_info(model_uri).flavors['python_function']['loader_module']
+    loader = importlib.import_module(model_flavor[:len(model_flavor) - model_flavor[::-1].index('.') - 1])
+    mlflow_model = loader.load_model(model_uri, dst_path=tempdir)
 
     ds = datasources.get_datasource(args['datasource_repo'], args['datasource_name'])
     dp_map = ds.all().dataframe[['path', 'datapoint_id']]
