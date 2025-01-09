@@ -1,3 +1,4 @@
+from dagshub.mlflow import get_mlflow_model
 from dagshub.data_engine import datasources
 from dotenv import load_dotenv
 
@@ -60,7 +61,7 @@ def _configure():
     try:
         uv_output = subprocess.run(f'yes | uv pip install --upgrade -r {req_path}', shell=True, capture_output=True)
     except:
-        raise ValueError("Failed to install requirements.txt.")
+        raise RuntimeError("Failed to install requirements.txt.")
     importlib.invalidate_caches()
 
     lookup_table = importlib.metadata.packages_distributions()
@@ -72,10 +73,7 @@ def _configure():
             print(f"Could not re-load {module}")
     importlib.invalidate_caches()
 
-    model_flavor = mlflow.models.get_model_info(model_uri).flavors['python_function']['loader_module']
-    loader = importlib.import_module(model_flavor[:len(model_flavor) - model_flavor[::-1].index('.') - 1])
-    mlflow_model = loader.load_model(model_uri, dst_path=tempdir)
-
+    mlflow_model = get_mlflow_model(args['repo'], args['name'], args['host'], args['version'])
     ds = datasources.get_datasource(args['datasource_repo'], args['datasource_name'])
     dp_map = ds.all().dataframe[['path', 'datapoint_id']]
     model.configure(mlflow_model, *[cloudpickle.loads(base64.b64decode(args[hook])) for hook in ['pre_hook', 'post_hook']], ds, dp_map)
